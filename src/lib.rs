@@ -4,7 +4,7 @@ use jni_sys::{JNINativeInterface_, JNINativeMethod, jbyteArray, jint, jlong};
 use std::ffi::{CString, c_void};
 use std::fs;
 use std::sync::{LazyLock, Mutex};
-use zygisk_rs::{Api, Module};
+use zygisk_rs::{Api, Module, register_zygisk_module};
 
 static ORIG: LazyLock<Mutex<Option<extern "C" fn(jlong, jbyteArray, jint) -> jint>>> =
     LazyLock::new(|| Mutex::new(None));
@@ -102,3 +102,5 @@ impl Module for Zygisk {
 
     fn post_server_specialize(&mut self, _args: &zygisk_rs::ServerSpecializeArgs) {}
 }
+
+register_zygisk_module!(Zygisk);
