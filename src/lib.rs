@@ -1,6 +1,8 @@
 use jni::JNIEnv;
+use jni::strings::JavaStr;
 use jni_sys::{JNINativeInterface_, JNINativeMethod, jbyteArray, jint, jlong};
 use std::ffi::{CString, c_void};
+use std::fs;
 use std::sync::{LazyLock, Mutex};
 use zygisk_rs::{Api, Module};
 
@@ -37,7 +39,38 @@ impl Module for Zygisk {
         Self { api, env }
     }
 
-    fn pre_app_specialize(&mut self, _args: &mut zygisk_rs::AppSpecializeArgs) {
+    fn pre_app_specialize(&mut self, args: &mut zygisk_rs::AppSpecializeArgs) {
+        // get app pids
+        let package_name = self
+            .env
+            .get_string(unsafe {
+                (args.nice_name as *mut jni_sys::jstring as *mut ()
+                    as *const jni::objects::JString<'_>)
+                    .as_ref()
+                    .unwrap()
+            })
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let mut pids = vec![];
+
+        for i in fs::read_dir("/proc/").unwrap() {
+            let dir = i.unwrap();
+            let pkg = dir.path().join("cmdline");
+
+            let file = fs::read_to_string(pkg).unwrap();
+
+            if package_name == file {
+                pids.push(
+                    dir.file_name()
+                        .to_string_lossy()
+                        .parse::<isize>()
+                        .unwrap_or(0),
+                );
+            }
+        }
+
+        // hook Native
         let mname = CString::new("nSyncAndDrawFrame").unwrap();
         let msig = CString::new("(J[JI)I").unwrap();
 
@@ -50,11 +83,13 @@ impl Module for Zygisk {
         }];
         self.api
             .hook_jni_native_methods(env_ptr, "android/graphics/HardwareRenderer", methods);
-        // 3.5 保存原始指针
         if methods[0].fnPtr.is_null() {
             log::error!("[zygisk-rs] hookJniNativeMethods failed!");
         } else {
-            log::info!("[zygisk-rs] Hooked! orig={:p}", methods[0].fnPtr);
+            log::info!(
+                "[zygisk-rs] Hooked! orig={:p}, pids={pids:?}",
+                methods[0].fnPtr
+            );
             unsafe {
                 *ORIG.lock().unwrap() = Some(std::mem::transmute(methods[0].fnPtr));
             }
