@@ -1,0 +1,17 @@
+[package]
+name = "zygisk-frame-analyzer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+jni = { version = "0.21.1", default-features = false }
+jni-sys = "0.4.0"
+log = "0.4.28"
+zygisk-rs = { git = "https://github.com/Kr328/zygisk-rs", rev = "bf277f9a", default-features = false, features = ["v4"]}
+
+[lib]
+name = "zygisk"
+crate-type = ["cdylib"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.15.1"
