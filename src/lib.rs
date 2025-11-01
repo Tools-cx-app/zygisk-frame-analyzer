@@ -1,5 +1,4 @@
 use jni::JNIEnv;
-use jni::strings::JavaStr;
 use jni_sys::{JNINativeInterface_, JNINativeMethod, jbyteArray, jint, jlong};
 use std::ffi::{CString, c_void};
 use std::fs;
