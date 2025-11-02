@@ -8,12 +8,12 @@ use zygisk_rs::{Api, Module, register_zygisk_module};
 static ORIG: LazyLock<Mutex<Option<extern "C" fn(jlong, jbyteArray, jint) -> jint>>> =
     LazyLock::new(|| Mutex::new(None));
 
-extern "C" fn my_nSyncAndDrawFrame(_arg0: jlong, _arg1: jbyteArray, _arg2: jint) -> jint {
+extern "C" fn nsync(_arg0: jlong, _arg1: jbyteArray, _arg2: jint) -> jint {
     log::info!("[zygisk-rs] nSyncAndDrawFrame hit!");
     let orig = ORIG.lock().unwrap();
     if let Some(f) = *orig {
         drop(orig);
-        { f(_arg0, _arg1, _arg2) }
+        f(_arg0, _arg1, _arg2)
     } else {
         -1
     }
@@ -78,7 +78,7 @@ impl Module for Zygisk {
         let methods = [JNINativeMethod {
             name: mname.into_raw(),
             signature: msig.into_raw(),
-            fnPtr: my_nSyncAndDrawFrame as *mut c_void,
+            fnPtr: nsync as *mut c_void,
         }];
         self.api
             .hook_jni_native_methods(env_ptr, "android/graphics/HardwareRenderer", methods);
