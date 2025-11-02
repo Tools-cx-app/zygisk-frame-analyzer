@@ -8,12 +8,36 @@ use zygisk_rs::{Api, Module, register_zygisk_module};
 static ORIG: LazyLock<Mutex<Option<extern "C" fn(jlong, jbyteArray, jint) -> jint>>> =
     LazyLock::new(|| Mutex::new(None));
 
-extern "C" fn nsync(_arg0: jlong, _arg1: jbyteArray, _arg2: jint) -> jint {
-    log::info!("[zygisk-rs] nSyncAndDrawFrame hit!");
+extern "C" fn nsync(
+    env: *mut jni_sys::JNIEnv,
+    _jclass: jni_sys::jclass,
+    native_ptr: jlong,
+    frame_info: jbyteArray,
+    sync_mode: jint,
+) -> jint {
+    unsafe {
+        let func = (**env).v1_6;
+
+        let elements = (func.GetByteArrayElements)(env, frame_info, std::ptr::null_mut());
+        if elements.is_null() {
+            return -1;
+        }
+
+        let vsync_ns = *(elements as *const i64);
+        let vsync_ms = vsync_ns / 1_000_000;
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        log::info!("[hook] vsync={} ms  now={} ms", vsync_ms, now_ms);
+
+        (func.ReleaseByteArrayElements)(env, frame_info, elements, jni_sys::JNI_ABORT);
+    }
+
     let orig = ORIG.lock().unwrap();
     if let Some(f) = *orig {
         drop(orig);
-        f(_arg0, _arg1, _arg2)
+        f(native_ptr, frame_info, sync_mode)
     } else {
         -1
     }
