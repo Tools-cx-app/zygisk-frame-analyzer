@@ -64,34 +64,38 @@ impl Module for Zygisk {
 
     fn pre_app_specialize(&mut self, args: &mut zygisk_rs::AppSpecializeArgs) {
         // get app pids
-        let package_name = self
-            .env
-            .get_string(unsafe {
-                (args.nice_name as *mut jni_sys::jstring as *mut ()
-                    as *const jni::objects::JString<'_>)
-                    .as_ref()
-                    .unwrap()
-            })
-            .unwrap()
-            .to_string_lossy()
-            .to_string();
-        let mut pids = vec![];
+        let pids = (|| -> anyhow::Result<Vec<_>> {
+            let package_name = self
+                .env
+                .get_string(unsafe {
+                    (args.nice_name as *mut jni_sys::jstring as *mut ()
+                        as *const jni::objects::JString<'_>)
+                        .as_ref()
+                        .unwrap()
+                })?
+                .to_string_lossy()
+                .to_string();
 
-        for i in fs::read_dir("/proc/").unwrap() {
-            let dir = i.unwrap();
-            let pkg = dir.path().join("cmdline");
+            let mut pids = vec![];
 
-            let file = fs::read_to_string(pkg).unwrap();
+            for i in fs::read_dir("/proc/")? {
+                let dir = i.unwrap();
+                let pkg = dir.path().join("cmdline");
 
-            if package_name == file {
-                pids.push(
-                    dir.file_name()
-                        .to_string_lossy()
-                        .parse::<isize>()
-                        .unwrap_or(0),
-                );
+                let file = fs::read_to_string(pkg)?;
+
+                if package_name == file {
+                    pids.push(
+                        dir.file_name()
+                            .to_string_lossy()
+                            .parse::<isize>()
+                            .unwrap_or(0),
+                    );
+                }
             }
-        }
+            Ok(pids)
+        })()
+        .unwrap_or(vec![0]);
 
         // hook Native
         let mname = CString::new("nSyncAndDrawFrame").unwrap();
