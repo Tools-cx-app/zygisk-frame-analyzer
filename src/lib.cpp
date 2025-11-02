@@ -39,8 +39,9 @@ static int my_func(JNIEnv *env, jobject clazz, jlong proxyPtr,
     jlong now = ts.tv_sec * 1000000000LL + ts.tv_nsec;
     jlong delta = now - buffer[VSYNC];
     g_lastFrameTime.store(delta, std::memory_order_relaxed);
+    pid_t pid = getpid();
 
-    LOGD("frametime: %ld", delta);
+    LOGD("frametime: %ld, pid: %d", delta, pid);
     return orig_func(env, clazz, proxyPtr, frameInfo, frameInfoSize);
 }
 
@@ -80,7 +81,7 @@ static void* server_thread(void*)
 
         long t = g_lastFrameTime.load(std::memory_order_relaxed);
         char reply[64];
-        int len = snprintf(reply, sizeof(reply), "%ld\n", t);
+        int len = snprintf(reply, sizeof(reply), "%d:%ld\n", getpid(), t);
         send(c, reply, len, MSG_NOSIGNAL);
         close(c);
     }
