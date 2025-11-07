@@ -47,7 +47,7 @@ static int my_func(JNIEnv *env, jobject clazz, jlong proxyPtr,
 
 static void* server_thread(void*)
 {
-    const char *sock_path = "/data/adb/zygisk.sock";
+    const char *sock_path = "/data/adb/fas_rs/zygisk.sock";
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
         LOGD("socket failed: %s", strerror(errno));
