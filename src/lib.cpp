@@ -10,6 +10,10 @@
 #include <atomic>
 #include <sys/stat.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
 
 #include "zygisk.hpp"
 
@@ -21,6 +25,7 @@ using zygisk::AppSpecializeArgs;
 using zygisk::Option;
 
 const size_t VSYNC = 3;
+const char* dir = "/data/adb/fas_rs";
 
 static std::atomic<long> g_lastFrameTime{0};
 
@@ -45,9 +50,39 @@ static int my_func(JNIEnv *env, jobject clazz, jlong proxyPtr,
     return orig_func(env, clazz, proxyPtr, frameInfo, frameInfoSize);
 }
 
+bool ensure_socket_access(const char* sock_path) {
+    if (mkdir(dir, 0700) != 0 && errno != EEXIST) {
+        LOGD("mkdir failed");
+        return false;
+    }
+
+    if (chmod(dir, 0700) != 0) {
+        LOGD("chmod dir failed");
+        return false;
+    }
+
+    if (chmod(sock_path, 0666) != 0) {
+        LOGD("chmod sock failed");
+        return false;
+    }
+
+    char cmd[256];
+    chmod(sock_path, 0666);
+    snprintf(cmd, sizeof(cmd),
+             "chcon u:object_r:adb_data_file:s0 %s", sock_path);
+    system(cmd);
+    
+    snprintf(cmd, sizeof(cmd),
+             "chcon -R u:object_r:adb_data_file:s0 %s", dir);
+    system(cmd);
+    
+    return true;
+}
+
 static void* server_thread(void*)
 {
     const char *sock_path = "/data/adb/fas_rs/zygisk.sock";
+    ensure_socket_access(sock_path);
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
         LOGD("socket failed: %s", strerror(errno));
