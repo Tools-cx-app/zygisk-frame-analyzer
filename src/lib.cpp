@@ -1,19 +1,19 @@
 #include <android/log.h>
 #include <jni.h>
+#include <pthread.h>
+#include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <pthread.h>
+
 #include <atomic>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <unistd.h>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
-#include <string>
 
 #include "zygisk.hpp"
 
@@ -24,8 +24,8 @@ using zygisk::Api;
 using zygisk::AppSpecializeArgs;
 using zygisk::Option;
 
-const size_t VSYNC = 3;
-const char* dir = "/data/adb/fas_rs";
+const std::size_t VSYNC = 3;
+const char *dir = "/data/adb/fas_rs";
 
 static std::atomic<long> g_lastFrameTime{0};
 
@@ -34,7 +34,8 @@ static int (*orig_func)(JNIEnv *env, jobject clazz, jlong proxyPtr,
 static int my_func(JNIEnv *env, jobject clazz, jlong proxyPtr,
                    jlongArray frameInfo, jint frameInfoSize) {
     jsize len = env->GetArrayLength(frameInfo);
-    if (len < 4) return orig_func(env, clazz, proxyPtr, frameInfo, frameInfoSize);
+    if (len < 4)
+        return orig_func(env, clazz, proxyPtr, frameInfo, frameInfoSize);
 
     jlong buffer[4];
     env->GetLongArrayRegion(frameInfo, 0, 4, buffer);
@@ -50,7 +51,7 @@ static int my_func(JNIEnv *env, jobject clazz, jlong proxyPtr,
     return orig_func(env, clazz, proxyPtr, frameInfo, frameInfoSize);
 }
 
-bool ensure_socket_access(const char* sock_path) {
+bool ensure_socket_access(const char *sock_path) {
     if (mkdir(dir, 0700) != 0 && errno != EEXIST) {
         LOGD("mkdir failed");
         return false;
@@ -68,19 +69,17 @@ bool ensure_socket_access(const char* sock_path) {
 
     char cmd[256];
     chmod(sock_path, 0666);
-    snprintf(cmd, sizeof(cmd),
-             "chcon u:object_r:adb_data_file:s0 %s", sock_path);
+    snprintf(cmd, sizeof(cmd), "chcon u:object_r:adb_data_file:s0 %s",
+             sock_path);
     system(cmd);
-    
-    snprintf(cmd, sizeof(cmd),
-             "chcon -R u:object_r:adb_data_file:s0 %s", dir);
+
+    snprintf(cmd, sizeof(cmd), "chcon -R u:object_r:adb_data_file:s0 %s", dir);
     system(cmd);
-    
+
     return true;
 }
 
-static void* server_thread(void*)
-{
+static void *server_thread(void *) {
     const char *sock_path = "/data/adb/fas_rs/zygisk.sock";
     ensure_socket_access(sock_path);
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -95,7 +94,7 @@ static void* server_thread(void*)
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
 
-    if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         LOGD("bind %s failed: %s", sock_path, strerror(errno));
         close(fd);
         return nullptr;
@@ -123,20 +122,20 @@ static void* server_thread(void*)
     return nullptr;
 }
 
-class Demo : public zygisk::ModuleBase {
+class Zygisk : public zygisk::ModuleBase {
    public:
     void onLoad(Api *api, JNIEnv *env) override {
         this->api = api;
         this->env = env;
     }
-    
+
     void postAppSpecialize(const AppSpecializeArgs *args) override {
         pthread_t tid;
         pthread_create(&tid, nullptr, server_thread, nullptr);
         pthread_detach(tid);
         LOGD("socket server thread started");
     }
-    
+
     void preAppSpecialize(AppSpecializeArgs *args) override {
         JNINativeMethod methods[] = {
             {"nSyncAndDrawFrame", "(J[JI)I", (void *)my_func},
@@ -158,4 +157,4 @@ class Demo : public zygisk::ModuleBase {
     JNIEnv *env;
 };
 
-REGISTER_ZYGISK_MODULE(Demo)
+REGISTER_ZYGISK_MODULE(Zygisk)
