@@ -80,7 +80,9 @@ bool ensure_socket_access(const char *sock_path) {
 }
 
 static void *server_thread(void *) {
-    const char *sock_path = "/data/adb/fas_rs/zygisk.sock";
+    char sock_path[256];
+    snprintf(sock_path, sizeof(sock_path), "%s/zygisk.sock", dir);
+
     ensure_socket_access(sock_path);
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
