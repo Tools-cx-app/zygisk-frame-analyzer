@@ -25,7 +25,7 @@ using zygisk::AppSpecializeArgs;
 using zygisk::Option;
 
 const std::size_t VSYNC = 3;
-const char *dir = "/data/adb/fas_rs";
+const char *dir = "/data/adb/modules/fas_rs_next";
 
 static std::atomic<long> g_lastFrameTime{0};
 
